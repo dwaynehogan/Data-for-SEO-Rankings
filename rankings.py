@@ -36,8 +36,8 @@ async def get_top_100_results_async(keywords, username, password, domain):
     results = []
     semaphore = asyncio.Semaphore(CONCURRENT_REQUESTS)
 
-    async def bound_fetch(sem, session, keyword):
-        async with sem:
+    async def bound_fetch(session, keyword):
+        async with semaphore:
             print(f'Fetching results for keyword: {keyword}')
             payload = [
                 {
@@ -95,18 +95,22 @@ async def get_top_100_results_async(keywords, username, password, domain):
                 results.append([keyword, 100, '', '', ''])
 
     async with aiohttp.ClientSession() as session:
-        tasks = []
-        for keyword in keywords:
-            tasks.append(asyncio.create_task(bound_fetch(semaphore, session, keyword)))
-
-        # Rate limiting to ensure we don't exceed 2000 requests per minute
         total_keywords = len(keywords)
-        total_batches = math.ceil(total_keywords / MAX_REQUESTS_PER_MINUTE)
-        batch_size = math.ceil(total_keywords / total_batches)
-        for i in range(0, total_keywords, batch_size):
-            batch_tasks = tasks[i:i + batch_size]
-            await asyncio.gather(*batch_tasks)
-            if i + batch_size < total_keywords:
+        batches = [
+            keywords[i:i + CONCURRENT_REQUESTS]
+            for i in range(0, total_keywords, CONCURRENT_REQUESTS)
+        ]
+
+        # Calculate how many batches can be processed per minute
+        batches_per_minute = MAX_REQUESTS_PER_MINUTE // CONCURRENT_REQUESTS or 1
+
+        for i, batch in enumerate(batches):
+            print(f'Processing batch {i + 1} of {len(batches)}')
+            tasks = [asyncio.create_task(bound_fetch(session, kw)) for kw in batch]
+            await asyncio.gather(*tasks)
+
+            # Rate limiting
+            if (i + 1) % batches_per_minute == 0 and (i + 1) < len(batches):
                 print('Sleeping for 60 seconds to comply with rate limits...')
                 await asyncio.sleep(60)
 
@@ -132,12 +136,13 @@ def write_results_to_csv(output_file, results):
 
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    input_file = os.path.join(script_dir, 'keywords.csv')  # Replace with your input CSV file
+    input_file = os.path.join(script_dir, 'keywords.csv')  # Path to your input CSV file
     username = 'username'  # Replace with your DataForSEO username
     password = 'password'  # Replace with your DataForSEO password
 
+
     # Provide the domain name here (without subdomain or www)
-    domain = 'example.com'  # Replace with your domain
+    domain = 'example.com'  # Your target domain
 
     # Generate output filename with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
