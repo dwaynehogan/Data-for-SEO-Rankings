@@ -2,7 +2,7 @@
 
 ## Overview
 
-This script fetches top 100 Google organic search results for a list of keywords using the [DataForSEO API](https://www.dataforseo.com/). It retrieves rankings for a specific domain and exports the results to a CSV file. The script is built with `aiohttp` and `asyncio` to efficiently handle large batches of requests while adhering to API rate limits.
+This script retrieves rankings for a specific domain using the [DataForSEO API](https://www.dataforseo.com/) and exports the results to a CSV file. The script is built with `aiohttp` and `asyncio` to efficiently handle large batches of requests while adhering to API rate limits.
 
 ## Prerequisites
 
